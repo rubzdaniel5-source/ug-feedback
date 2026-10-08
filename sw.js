@@ -99,7 +99,7 @@ async function syncPendingFeedback(){
             'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRpcmhwbWZiZnB2ZXp0amh1ZGttIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MDc5MDUwNTUsImV4cCI6MjAyMzQ4MTA1NX0.FbhzteHEIPkH4PaOSFMWWfGBMp03HMIhz9BcfxJMPBM',
             'Prefer':        'return=minimal',
           },
-          body: JSON.stringify(item),
+          body: JSON.stringify((({ _local_id, id, ...rest }) => rest)(item)),
         }
       );
       if(response.ok){
