@@ -124,7 +124,7 @@
 
   <!-- Header -->
   <div class="hdr">
-    <div class="hdr-crane">🦩</div>
+    <div class="hdr-crane">✈️</div>
     <div class="hdr-airline">Uganda Airlines</div>
     <div class="hdr-title">Passenger Feedback</div>
     <div class="hdr-flight" id="hdr-flight-info">Share your experience with us</div>
@@ -215,8 +215,8 @@
     </div>
   </div>
 
-  <div class="page-footer">Uganda Airlines · Passenger Experience Programme<br>
-    For urgent assistance contact our crew onboard.</div>
+  <div class="page-footer">UGANDA AIRLINES · FLY THE CRANE TO THE PEARL OF AFRICA<br>
+    For urgent assistance, speak to a crew member onboard.</div>
 </div>
 
 <!-- ══════════════════════════════════════════════════
@@ -356,8 +356,10 @@ function validate(){
 // ══════════════════════════════════════════════════
 function buildPayload(){
   const params  = new URLSearchParams(window.location.search);
+  // local_id is only for IDB keying — NOT sent to Supabase
+  const local_id = (crypto.randomUUID ? crypto.randomUUID() : 'fb_'+Date.now()+'_'+Math.random().toString(36).slice(2));
   return {
-    id:                  crypto.randomUUID ? crypto.randomUUID() : 'fb_'+Date.now()+'_'+Math.random().toString(36).slice(2),
+    _local_id:           local_id,  // stripped before Supabase POST, kept for IDB
     flight_number:       (document.getElementById('f-flight').value.trim()||params.get('flight')||'').toUpperCase()||null,
     flight_date:         params.get('date') || null,
     route:               params.get('route') || null,
@@ -374,7 +376,6 @@ function buildPayload(){
     comments:            document.getElementById('f-comments').value.trim() || null,
     seat_number:         (document.getElementById('f-seat').value.trim()||'').toUpperCase() || null,
     device_id:           localStorage.getItem(DEVICE_ID_KEY),
-    created_at:          new Date().toISOString(),
   };
 }
 
@@ -408,6 +409,8 @@ async function submitFeedback(){
 // ══════════════════════════════════════════════════
 async function sendToSupabase(payload){
   try{
+    // Strip local-only fields before sending
+    const { _local_id, ...supabasePayload } = payload;
     const res = await fetch(`${SUPABASE_URL}/rest/v1/passenger_feedback`, {
       method:  'POST',
       headers: {
@@ -416,10 +419,18 @@ async function sendToSupabase(payload){
         'Authorization': `Bearer ${SUPABASE_ANON}`,
         'Prefer':        'return=minimal',
       },
-      body: JSON.stringify(payload),
+      body: JSON.stringify(supabasePayload),
     });
+    if(!res.ok){
+      // Log error for debugging
+      const errText = await res.text().catch(()=>'');
+      console.warn('Supabase error:', res.status, errText);
+    }
     return res.ok;
-  }catch{ return false; }
+  }catch(e){
+    console.warn('sendToSupabase failed:', e);
+    return false;
+  }
 }
 
 // ══════════════════════════════════════════════════
@@ -440,7 +451,9 @@ async function saveToIDB(payload){
   try{
     const db  = await openIDB();
     const tx  = db.transaction(IDB_STORE, 'readwrite');
-    tx.objectStore(IDB_STORE).put(payload);
+    // Use _local_id as IDB key so we can delete it after sync
+    const idbItem = { ...payload, id: payload._local_id };
+    tx.objectStore(IDB_STORE).put(idbItem);
     await new Promise((res,rej)=>{ tx.oncomplete=res; tx.onerror=rej; });
   }catch(e){ console.warn('IDB save error:', e); }
 }
